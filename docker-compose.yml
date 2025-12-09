@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: exposure-radar-db
+    environment:
+      POSTGRES_USER: exposure_radar
+      POSTGRES_PASSWORD: exposure_radar
+      POSTGRES_DB: exposure_radar
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U exposure_radar" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: exposure-radar-redis
+    command: [ "redis-server", "--save", "", "--appendonly", "no" ]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: exposure-radar-backend
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://exposure_radar:exposure_radar@db:5432/exposure_radar?schema=public
+      REDIS_URL: redis://redis:6379
+      DEMO_ADMIN_EMAIL: admin@example.com
+      DEMO_ADMIN_PASSWORD: change-me
+      DEMO_ORG_NAME: Demo Org
+      DEMO_ORG_SLUG: demo-org
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: exposure-radar-worker
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://exposure_radar:exposure_radar@db:5432/exposure_radar?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - node
+      - -e
+      - "console.log('Worker skeleton - no jobs yet'); setInterval(() => {}, 60 * 1000);"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: exposure-radar-frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:3000"
