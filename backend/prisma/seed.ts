@@ -16,9 +16,14 @@ const prisma = new PrismaClient({ adapter });
 const DEMO_ORG_NAME = process.env.DEMO_ORG_NAME ?? 'Demo Org';
 const DEMO_ORG_SLUG = process.env.DEMO_ORG_SLUG ?? 'demo-org';
 const DEMO_ADMIN_EMAIL = process.env.DEMO_ADMIN_EMAIL ?? 'admin@demo.local';
-const DEMO_ADMIN_PASSWORD = process.env.DEMO_ADMIN_PASSWORD ?? 'admin123!';
+const DEMO_ADMIN_PASSWORD = process.env.DEMO_ADMIN_PASSWORD;
 
 async function main(): Promise<void> {
+  if (!DEMO_ADMIN_PASSWORD) {
+    throw new Error(
+      'DEMO_ADMIN_PASSWORD is not set. Define it in backend/.env before running the seed.',
+    );
+  }
   // Hash password (idempotent: user upsert will update the hash if it changes).
   const passwordHash = await bcrypt.hash(DEMO_ADMIN_PASSWORD, 12);
 
