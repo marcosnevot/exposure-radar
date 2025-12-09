@@ -209,7 +209,8 @@ The seed script creates:
 - A demo admin user with:
 
   - Email: `admin@demo.local`
-  - Password: `admin123!` (can be overridden with the `DEMO_ADMIN_PASSWORD` environment variable before running the seed).
+  - Password: value configured in `DEMO_ADMIN_PASSWORD` (in `backend/.env` before running the seed).
+
 
 To re-run the seed locally:
 
