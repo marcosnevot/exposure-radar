@@ -1,0 +1,12 @@
+# ExposureRadar
+
+Initial bootstrap for the ExposureRadar monorepo.
+
+This repository will contain:
+
+- Backend API (NestJS + Prisma + PostgreSQL + Redis).
+- Frontend web app (React + Vite + TypeScript).
+- Docker Compose for local-only execution.
+- Basic CI with GitHub Actions.
+
+> Note: This project is portfolio-focused and intended only for local execution.

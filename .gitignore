@@ -1,0 +1,42 @@
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.*.backup
+
+# Build outputs
+dist/
+build/
+coverage/
+.tmp/
+.temp/
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*
+!.env.example
+
+# Prisma (if local sqlite is ever used)
+*.db
+*.db-journal
+
+# Docker
+docker-data/
+docker-volume-*/
