@@ -1,0 +1,332 @@
+// Prisma schema for ExposureRadar backend
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../generated/prisma"
+  moduleFormat           = "cjs"
+  generatedFileExtension = "ts"
+  importFileExtension    = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//
+// Enums
+//
+
+enum UserRole {
+  admin
+  user
+
+  @@map("user_role")
+}
+
+enum ScanRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@map("scan_run_status")
+}
+
+enum ToolType {
+  NMAP
+  NESSUS
+  SHODAN
+  OTHER
+
+  @@map("tool_type")
+}
+
+enum SourceFormat {
+  NMAP_XML
+  NESSUS_XML
+  NESSUS_CSV
+  SHODAN_JSON
+  UNKNOWN
+
+  @@map("source_format")
+}
+
+enum AssetType {
+  HOST
+  DOMAIN
+  IP_RANGE
+  OTHER
+
+  @@map("asset_type")
+}
+
+enum ServiceProtocol {
+  TCP
+  UDP
+  SCTP
+  OTHER
+
+  @@map("service_protocol")
+}
+
+enum FindingSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("finding_severity")
+}
+
+enum FindingStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  IGNORED
+
+  @@map("finding_status")
+}
+
+//
+// Models
+//
+
+model Organization {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @db.VarChar(150)
+  slug      String    @db.VarChar(80)
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  memberships    OrganizationUser[]
+  scanRuns       ScanRun[]
+  assets         Asset[]
+  services       AssetService[]
+  observations   Observation[]
+  findings       Finding[]
+  assetHostnames AssetHostname[]
+
+  @@unique([name])
+  @@unique([slug])
+  @@map("organizations")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.Text
+  fullName     String    @map("full_name") @db.VarChar(120)
+  role         UserRole
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  memberships       OrganizationUser[]
+  requestedScanRuns ScanRun[]          @relation("ScanRunsRequested")
+
+  @@map("users")
+}
+
+model OrganizationUser {
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  orgRole        UserRole @map("org_role")
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([organizationId, userId])
+  @@map("organization_users")
+}
+
+model ScanRun {
+  id                  String        @id @default(uuid()) @db.Uuid
+  organizationId      String        @map("organization_id") @db.Uuid
+  tool                ToolType
+  sourceFormat        SourceFormat  @map("source_format")
+  status              ScanRunStatus
+  requestedByUserId   String        @map("requested_by_user_id") @db.Uuid
+  inputFilename       String        @map("input_filename") @db.VarChar(255)
+  storagePath         String        @map("storage_path") @db.Text
+  fileSizeBytes       BigInt        @map("file_size_bytes") @db.BigInt
+  startedAt           DateTime?     @map("started_at") @db.Timestamptz
+  finishedAt          DateTime?     @map("finished_at") @db.Timestamptz
+  totalAssetsAffected Int?          @map("total_assets_affected")
+  newAssets           Int?          @map("new_assets")
+  newServices         Int?          @map("new_services")
+  newFindings         Int?          @map("new_findings")
+  errorCode           String?       @map("error_code") @db.VarChar(64)
+  errorMessage        String?       @map("error_message") @db.Text
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  requestedByUser  User           @relation("ScanRunsRequested", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  assetsLastScan   Asset[]        @relation("AssetLastScan")
+  servicesLastScan AssetService[] @relation("ServiceLastScan")
+  findingsFirst    Finding[]      @relation("FindingFirstScan")
+  findingsLast     Finding[]      @relation("FindingLastScan")
+  observations     Observation[]
+
+  @@index([organizationId])
+  @@map("scan_runs")
+}
+
+model Asset {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  assetType       AssetType @map("asset_type")
+  primaryIp       String    @map("primary_ip") @db.Inet
+  primaryHostname String?   @map("primary_hostname") @db.VarChar(255)
+  countryCode     String?   @map("country_code") @db.Char(2)
+  city            String?   @db.VarChar(128)
+  latitude        Decimal?  @db.Decimal(9, 6)
+  longitude       Decimal?  @db.Decimal(9, 6)
+  asn             Int?      @db.Integer
+  asnName         String?   @map("asn_name") @db.VarChar(255)
+  provider        String?   @db.VarChar(255)
+  rootDomain      String?   @map("root_domain") @db.VarChar(255)
+  firstSeenAt     DateTime  @map("first_seen_at") @db.Timestamptz
+  lastSeenAt      DateTime  @map("last_seen_at") @db.Timestamptz
+  lastScanRunId   String?   @map("last_scan_run_id") @db.Uuid
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  lastScanRun  ScanRun?        @relation("AssetLastScan", fields: [lastScanRunId], references: [id])
+  hostnames    AssetHostname[]
+  services     AssetService[]
+  observations Observation[]
+  findings     Finding[]       @relation("AssetFindings")
+
+  // SUPOSICIÓN: Prisma no soporta índices parciales; aquí se aplica a todos los assets.
+  @@unique([organizationId, primaryIp], map: "ux_assets_org_ip")
+  @@index([organizationId])
+  @@map("assets")
+}
+
+model AssetHostname {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  assetId        String   @map("asset_id") @db.Uuid
+  hostname       String   @db.VarChar(255)
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  firstSeenAt    DateTime @map("first_seen_at") @db.Timestamptz
+  lastSeenAt     DateTime @map("last_seen_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  asset        Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, hostname], map: "ux_asset_hostnames_org_hostname")
+  @@index([assetId])
+  @@map("asset_hostnames")
+}
+
+model AssetService {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  assetId        String          @map("asset_id") @db.Uuid
+  port           Int
+  protocol       ServiceProtocol
+  serviceName    String?         @map("service_name") @db.VarChar(128)
+  product        String?         @db.VarChar(255)
+  productVersion String?         @map("product_version") @db.VarChar(128)
+  isTls          Boolean?        @map("is_tls")
+  firstSeenAt    DateTime        @map("first_seen_at") @db.Timestamptz
+  lastSeenAt     DateTime        @map("last_seen_at") @db.Timestamptz
+  lastScanRunId  String?         @map("last_scan_run_id") @db.Uuid
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  asset        Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  lastScanRun  ScanRun?      @relation("ServiceLastScan", fields: [lastScanRunId], references: [id])
+  observations Observation[]
+  findings     Finding[]     @relation("ServiceFindings")
+
+  @@unique([organizationId, assetId, port, protocol], map: "ux_asset_services_org_asset_port_proto")
+  @@index([assetId])
+  @@index([organizationId])
+  @@map("asset_services")
+}
+
+model Observation {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  scanRunId      String   @map("scan_run_id") @db.Uuid
+  assetId        String   @map("asset_id") @db.Uuid
+  assetServiceId String   @map("asset_service_id") @db.Uuid
+  observedAt     DateTime @map("observed_at") @db.Timestamptz
+  sourceTool     ToolType @map("source_tool")
+  rawServiceName String?  @map("raw_service_name") @db.VarChar(128)
+  rawProduct     String?  @map("raw_product") @db.Text
+  rawBanner      String?  @map("raw_banner") @db.Text
+  extra          Json?    @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  scanRun      ScanRun      @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  asset        Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetService AssetService @relation(fields: [assetServiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([assetId])
+  @@index([assetServiceId])
+  @@index([scanRunId])
+  @@map("observations")
+}
+
+model Finding {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  assetId        String?         @map("asset_id") @db.Uuid
+  assetServiceId String?         @map("asset_service_id") @db.Uuid
+  sourceTool     ToolType        @map("source_tool")
+  externalId     String          @map("external_id") @db.VarChar(128)
+  title          String          @db.VarChar(255)
+  description    String?         @db.Text
+  severity       FindingSeverity
+  status         FindingStatus
+  cvssScore      Decimal?        @map("cvss_score") @db.Decimal(3, 1)
+  cveId          String?         @map("cve_id") @db.VarChar(64)
+  category       String?         @db.VarChar(64)
+  scanRunIdFirst String          @map("scan_run_id_first") @db.Uuid
+  scanRunIdLast  String          @map("scan_run_id_last") @db.Uuid
+  firstSeenAt    DateTime        @map("first_seen_at") @db.Timestamptz
+  lastSeenAt     DateTime        @map("last_seen_at") @db.Timestamptz
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  asset        Asset?        @relation("AssetFindings", fields: [assetId], references: [id])
+  assetService AssetService? @relation("ServiceFindings", fields: [assetServiceId], references: [id])
+  scanRunFirst ScanRun       @relation("FindingFirstScan", fields: [scanRunIdFirst], references: [id])
+  scanRunLast  ScanRun       @relation("FindingLastScan", fields: [scanRunIdLast], references: [id])
+
+  // SUPOSICIÓN: no podemos replicar exactamente el COALESCE del índice único;
+  // aquí usamos una clave compuesta simple.
+  @@unique([organizationId, sourceTool, externalId, assetServiceId, assetId], map: "ux_findings_upsert_key")
+  @@index([organizationId])
+  @@index([assetId])
+  @@index([assetServiceId])
+  @@index([scanRunIdFirst])
+  @@index([scanRunIdLast])
+  @@map("findings")
+}

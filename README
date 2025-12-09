@@ -1,12 +1,258 @@
 # ExposureRadar
 
-Initial bootstrap for the ExposureRadar monorepo.
+ExposureRadar is a full-stack application for exploring and understanding an organisation’s external attack surface. It is designed as a **local-only, portfolio-oriented** project: recruiters or reviewers can clone the repository, run Docker, and interact with a realistic backend + frontend stack on their own machine.
 
-This repository will contain:
+## Features
 
-- Backend API (NestJS + Prisma + PostgreSQL + Redis).
-- Frontend web app (React + Vite + TypeScript).
-- Docker Compose for local-only execution.
-- Basic CI with GitHub Actions.
+- Monorepo with backend API and frontend SPA.
+- PostgreSQL database and Redis cache/queue, orchestrated with Docker Compose.
+- Health endpoint that checks database and Redis connectivity.
+- Metrics endpoint exported in Prometheus format.
+- Demo organisation and admin user created via a seed script.
+- Simple React UI with a debug page that visualises the backend health status.
 
-> Note: This project is portfolio-focused and intended only for local execution.
+## Tech stack
+
+**Backend**
+
+- Node.js (>= 20)
+- NestJS (TypeScript)
+- Prisma ORM (PostgreSQL)
+- Redis (via `ioredis`)
+- Pino / `nestjs-pino` for structured logging
+- `prom-client` for metrics
+
+**Frontend**
+
+- React + TypeScript
+- Vite
+- React Router
+
+**Infrastructure & tooling**
+
+- Docker & Docker Compose
+- npm workspaces (`backend`, `frontend`)
+- Jest for backend tests
+- ESLint + Prettier
+
+## Repository layout
+
+```text
+exposure-radar/
+├─ backend/                # NestJS API + Prisma + seed
+│  ├─ src/
+│  ├─ prisma/
+│  │  ├─ schema.prisma
+│  │  └─ migrations/
+│  ├─ prisma.config.ts
+│  ├─ package.json
+│  └─ ...
+├─ frontend/               # React + Vite SPA
+│  ├─ src/
+│  │  ├─ config/
+│  │  │  └─ api.ts        # ApiClient for talking to the backend
+│  │  ├─ pages/
+│  │  │  └─ DebugHealthPage.tsx
+│  │  └─ App.tsx, main.tsx, styles…
+│  ├─ public/
+│  ├─ package.json
+│  └─ .env.example
+├─ docker/
+│  ├─ backend.Dockerfile   # Backend build + runtime image
+│  └─ frontend.Dockerfile  # Frontend dev server image
+├─ docs/                   # Project documentation (optional)
+├─ .github/
+│  └─ workflows/           # CI workflows (backend / frontend)
+├─ docker-compose.yml      # Orchestrates db, redis, backend, worker, frontend
+├─ package.json            # Root workspace definition
+├─ .gitignore
+└─ README.md
+```
+
+## Getting started
+
+### Prerequisites
+
+- Docker Desktop (or Docker Engine) installed and running.
+- Node.js 20+ and npm installed (only required for local development outside Docker).
+
+### Quick start with Docker (recommended)
+
+1. Clone the repository:
+
+   ```bash
+   git clone <your-repo-url> exposure-radar
+   cd exposure-radar
+   ```
+
+2. Create environment files (optional, sensible defaults are already present):
+
+   ```bash
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+
+3. Build and start all services:
+
+   ```bash
+   docker compose up --build
+   ```
+
+   This starts:
+
+   - `db` – PostgreSQL 16
+   - `redis` – Redis 7
+   - `backend` – NestJS API on port `4000`
+   - `worker` – background worker skeleton
+   - `frontend` – Vite dev server on port `3000`
+
+4. Apply database migrations inside the backend container:
+
+   ```bash
+   docker compose exec backend npx prisma migrate deploy
+   ```
+
+5. Seed demo data (demo organisation and admin user):
+
+   ```bash
+   docker compose exec backend npm run seed
+   ```
+
+6. Open the application:
+
+   - Backend health: `http://localhost:4000/health`
+   - Backend metrics: `http://localhost:4000/metrics`
+   - Frontend home: `http://localhost:3000`
+   - Frontend debug page: `http://localhost:3000/debug/health`
+
+7. To stop the stack:
+
+   ```bash
+   docker compose down
+   ```
+
+### Running without Docker (local development)
+
+You can also run the services directly on your machine.
+
+#### Backend
+
+1. Start PostgreSQL and Redis locally (or via separate containers) and update `backend/.env` to point to them.
+
+2. Install dependencies and run migrations:
+
+   ```bash
+   cd backend
+   npm install
+   npm run prisma:migrate:dev
+   ```
+
+3. Start the API in watch mode:
+
+   ```bash
+   npm run start:dev
+   ```
+
+The API will be exposed on `http://localhost:4000`.
+
+#### Frontend
+
+1. In another terminal:
+
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env   # if not already present
+   npm run dev
+   ```
+
+2. Open `http://localhost:5173` (default Vite port) or the URL printed in the terminal.
+
+> When running both backend and frontend outside Docker, ensure `VITE_API_BASE_URL` in `frontend/.env` points to the correct backend URL (for example `http://localhost:4000`).
+
+## Health and metrics
+
+### Health endpoint
+
+- URL: `GET /health`
+- Example: `http://localhost:4000/health`
+
+The endpoint returns a JSON payload indicating the status of the core dependencies:
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "db": "ok",
+    "queue": "ok"
+  }
+}
+```
+
+If any component fails, the endpoint responds with `503 Service Unavailable` and the corresponding check set to `"error"`.
+
+### Metrics endpoint
+
+- URL: `GET /metrics`
+- Example: `http://localhost:4000/metrics`
+
+Exposes Prometheus-compatible metrics for:
+
+- Node.js process.
+- Basic HTTP request counters and timings.
+
+## Demo data
+
+The seed script creates:
+
+- A demo organisation: `Demo Org` (slug `demo-org`).
+- A demo admin user with:
+
+  - Email: `admin@demo.local`
+  - Password: value configured in `DEMO_ADMIN_PASSWORD` (in `backend/.env` before running the seed).
+
+
+To re-run the seed locally:
+
+```bash
+cd backend
+npm run seed
+```
+
+When running under Docker, use:
+
+```bash
+docker compose exec backend npm run seed
+```
+
+## Testing
+
+### Backend
+
+From the repository root:
+
+```bash
+npm test --workspace backend
+```
+
+Or from inside `backend/`:
+
+```bash
+cd backend
+npm test
+```
+
+### Frontend
+
+From the repository root:
+
+```bash
+npm test --workspace frontend
+```
+
+(Initially the frontend test command is a placeholder; it is wired into the tooling so real tests can be added easily.)
+
+## License
+
+This project is intended as a portfolio piece.  
+See it in **[LICENSE](./LICENSE)**
