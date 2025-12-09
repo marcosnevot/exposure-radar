@@ -1,12 +1,59 @@
 # ExposureRadar
 
-Initial bootstrap for the ExposureRadar monorepo.
+ExposureRadar is a full-stack platform to manage attack surface and asset exposure for security teams.  
+This repository is a **local-only, portfolio-focused monorepo** containing:
 
-This repository will contain:
+- A backend API (NestJS + Prisma + PostgreSQL + Redis).
+- A frontend web app (React + Vite + TypeScript).
+- Docker Compose setup for running the full stack locally.
+- Basic CI pipelines (lint + tests) using GitHub Actions.
 
-- Backend API (NestJS + Prisma + PostgreSQL + Redis).
-- Frontend web app (React + Vite + TypeScript).
-- Docker Compose for local-only execution.
-- Basic CI with GitHub Actions.
+> Note: This project is designed for **local execution only** (no real production deployment).  
+> Recruiters and reviewers can clone the repo, run Docker, and explore the app locally.
 
-> Note: This project is portfolio-focused and intended only for local execution.
+## Tech stack (high level)
+
+- **Backend:** Node.js (NestJS, TypeScript, Prisma, BullMQ, PostgreSQL, Redis)
+- **Frontend:** React 18, TypeScript, Vite, React Router, TanStack Query
+- **Infrastructure (dev/portfolio):** Docker Compose, GitHub Actions
+
+## Project structure
+
+```text
+exposure-radar/
+├─ backend/        # NestJS API + workers (to be implemented in Phase 0)
+├─ frontend/       # React + Vite SPA (to be implemented in Phase 0)
+├─ docs/           # Technical docs (data model, API, architecture) - TODO
+├─ docker/         # Dockerfiles and related config - TODO
+├─ .github/
+│  └─ workflows/   # CI workflows (backend-ci, frontend-ci, etc.) - TODO
+├─ docker-compose.yml   # Will orchestrate backend, worker, frontend, db, redis
+├─ package.json    # Root workspace + shared scripts
+├─ .gitignore
+└─ README.md
+```
+
+## Getting started
+
+> This section will be completed as Phase 0 progresses.  
+> For now, only the repository skeleton is in place.
+
+Planned flow for a reviewer (once Phase 0 is complete):
+
+1. Clone the repository.
+2. Configure local `.env` files.
+3. Run `docker compose up --build`.
+4. Run Prisma migrations and seed demo data.
+5. Open:
+   - `http://localhost:4000/health` for the API healthcheck.
+   - `http://localhost:3000` for the frontend.
+   - `/debug/health` page in the frontend to see a UI-driven healthcheck.
+
+## Documentation
+
+More technical documentation will be added under `docs/`:
+
+- Data model (domain entities and database schema).
+- API contracts and error model.
+- Architecture and quality guidelines.
+
